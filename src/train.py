@@ -1,17 +1,17 @@
 from environment.GraspEnv import GraspEnv
-from policies.QLearning.QLearningGraspingPolicy import QLearningGraspingPolicy
+from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 import numpy as np
 import argparse
 from collections import deque
 
-def train_q_learning(n_episodes=10000, gui=False, load_existing=False):
-    """Train the Q-learning policy"""
+def train_hill_climbing(n_episodes=2000, gui=False, load_existing=False):
+    """Train using hill climbing policy"""
     env = GraspEnv(gui=gui)
-    policy = QLearningGraspingPolicy()
+    policy = HillClimbingGraspingPolicy()
     
     if load_existing:
         try:
-            policy.load_policy()
+            policy.load_policy('src/best_hill_climbing_policy.pkl')
             print("Loaded existing policy...")
         except:
             print("No existing policy found, starting fresh...")
@@ -20,21 +20,17 @@ def train_q_learning(n_episodes=10000, gui=False, load_existing=False):
     success_history = deque(maxlen=100)
     reward_history = deque(maxlen=100)
     episode_lengths = deque(maxlen=100)
-    best_success_rate = 0.0
     
     for episode in range(n_episodes):
         obs = env.reset()
+        policy.reset()
         episode_reward = 0
         steps = 0
         
         while True:
             action = policy.get_action(obs)
-            
-            # step in environment
             next_obs, reward, done, info = env.step(action)
-            
-            # update policy
-            policy.update(obs, action, reward, next_obs)
+            policy.update(obs, action, reward, next_obs, done, info)
             
             episode_reward += reward
             steps += 1
@@ -52,37 +48,30 @@ def train_q_learning(n_episodes=10000, gui=False, load_existing=False):
         current_success_rate = np.mean(success_history)
         current_reward = np.mean(reward_history)
         
-        # save teh best policy
-        if current_success_rate > best_success_rate:
-            best_success_rate = current_success_rate
-            policy.save_policy('best_q_policy.pkl')
-        
-        # decay-eps exploration
-        policy.decay_epsilon()
-        
-        if episode % 100 == 0:
+        if episode % 100 == 0 and episode != 0:
             print(f"\nEpisode {episode}/{n_episodes}")
             print(f"Success Rate (last 100): {current_success_rate:.2%}")
             print(f"Average Reward (last 100): {current_reward:.1f}")
             print(f"Average Episode Length: {np.mean(episode_lengths):.1f}")
-            print(f"Current Epsilon: {policy.epsilon:.3f}")
-            print(f"Best Success Rate: {best_success_rate:.2%}")
+            print(f"Best Success Rate: {policy.best_success_rate:.2%}")
     
+    # save best policy
+    policy.save_policy('src/best_hill_climbing_policy.pkl')
     env.cleanup()
     return policy
 
-def evaluate_policy(policy, n_episodes=100, gui=True):
+def evaluate_policy(policy, n_episodes=100, gui=False):
     """Evaluate a trained policy"""
     env = GraspEnv(gui=gui)
     successes = 0
     rewards = []
     
-    # disable exploration for evaluation
-    original_epsilon = policy.epsilon
-    policy.epsilon = 0
+    # use best parameters for evaluation
+    policy.current_params = policy.best_params
     
     for episode in range(n_episodes):
         obs = env.reset()
+        policy.reset()
         episode_reward = 0
         
         while True:
@@ -100,9 +89,6 @@ def evaluate_policy(policy, n_episodes=100, gui=True):
             print(f"Completed {episode}/{n_episodes} evaluation episodes...")
             print(f"Current success rate: {successes/(episode+1):.2%}")
     
-    # restore original epsilon
-    policy.epsilon = original_epsilon
-    
     print("\nEvaluation Results:")
     print(f"Success rate: {successes/n_episodes:.2%}")
     print(f"Average reward: {np.mean(rewards):.1f}")
@@ -112,10 +98,10 @@ def evaluate_policy(policy, n_episodes=100, gui=True):
     return successes/n_episodes
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train Q-learning grasping policy')
+    parser = argparse.ArgumentParser(description='Train hill climbing grasping policy')
     parser.add_argument('--gui', action='store_true', default=False,
                       help='Use GUI mode instead of DIRECT mode')
-    parser.add_argument('--episodes', type=int, default=10000,
+    parser.add_argument('--episodes', type=int, default=2000,
                       help='Number of training episodes')
     parser.add_argument('--load', action='store_true', default=False,
                       help='Load existing policy')
@@ -125,12 +111,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.eval:
-        policy = QLearningGraspingPolicy()
+        policy = HillClimbingGraspingPolicy()
         try:
-            policy.load_policy('best_q_policy.pkl')
+            policy.load_policy('src/best_hill_climbing_policy.pkl')
             evaluate_policy(policy, n_episodes=100, gui=args.gui)
         except:
             print("No policy file found! Please train first.")
     else:
-        policy = train_q_learning(args.episodes, args.gui, args.load)
-        evaluate_policy(policy, n_episodes=100, gui=True)
+        policy = train_hill_climbing(args.episodes, args.gui, args.load)
+        evaluate_policy(policy, n_episodes=100, gui=False)

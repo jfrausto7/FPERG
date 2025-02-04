@@ -1,6 +1,6 @@
 from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
-from policies.QLearning.QLearningGraspingPolicy import QLearningGraspingPolicy
+from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 import argparse
 import time
 import numpy as np
@@ -14,7 +14,7 @@ def run_single_grasp(gui_mode=False, use_qlearning=False, policy_file=None):
     
     # initialize appropriate policy
     if use_qlearning:
-        policy = QLearningGraspingPolicy()
+        policy = HillClimbingGraspingPolicy()
         if policy_file:
             try:
                 policy.load_policy(policy_file)
@@ -46,7 +46,7 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
     
     # Initialize appropriate policy
     if use_qlearning:
-        policy = QLearningGraspingPolicy()
+        policy = HillClimbingGraspingPolicy()
         if policy_file:
             try:
                 policy.load_policy(policy_file)
@@ -98,10 +98,10 @@ def main():
                       help='Run N grasp attempts (default: None, runs single grasp)')
     parser.add_argument('--seed', type=int, default=None,
                       help='Random seed (default: None)')
-    parser.add_argument('--qlearning', action='store_true', default=False,
-                      help='Use Q-learning policy instead of default policy')
-    parser.add_argument('--policy-file', type=str, default='best_q_policy.pkl',
-                      help='Path to Q-learning policy file (default: best_q_policy.pkl)')
+    parser.add_argument('--hill', action='store_true', default=False,
+                      help='Use Hill Climbing policy instead of default policy')
+    parser.add_argument('--policy-file', type=str, default='src/best_hill_climbing_policy.pkl',
+                      help='Path to Q-learning policy file (default: best_hill_climbing_policy.pkl)')
     
     args = parser.parse_args()
     
@@ -111,17 +111,17 @@ def main():
     
     # print selected config
     mode = 'GUI' if args.gui else 'DIRECT'
-    policy_type = 'Q-learning' if args.qlearning else 'Default'
+    policy_type = 'Hill Climbing' if args.hill else 'Default'
     print(f"Running with {policy_type} policy in {mode} mode...")
-    if args.qlearning:
+    if args.hill:
         print(f"Using policy file: {args.policy_file}")
         
     if args.multiple is not None:
         print(f"Running {args.multiple} grasp attempts...")
-        run_multiple_grasps(args.multiple, args.gui, args.qlearning, args.policy_file)
+        run_multiple_grasps(args.multiple, args.gui, args.hill, args.policy_file)
     else:
         print("Running single grasp...")
-        run_single_grasp(args.gui, args.qlearning, args.policy_file)
+        run_single_grasp(args.gui, args.hill, args.policy_file)
 
 if __name__ == "__main__":
     main()
