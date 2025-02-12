@@ -4,6 +4,11 @@ from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 import argparse
 import time
 import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from pathlib import Path
+
+SAVE_PATH = "src/data/"
 
 def run_single_grasp(gui_mode=False, use_qlearning=False, policy_file=None):
     """Run a single grasp attempt"""
@@ -43,7 +48,11 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
     env = GraspEnv(gui=gui_mode)
     successes = 0
     total_rewards = []
-    
+    actions_df = DataFrame([], columns=["attempt", "step", "observation", "action", "reward", "done", "info" ])
+    actions_df_index = 0
+    attempts_df = DataFrame([], columns=["attempt", "episode reward", "success"])
+    attempts_df_index = 0
+
     # Initialize appropriate policy
     if use_qlearning:
         policy = HillClimbingGraspingPolicy()
@@ -65,14 +74,20 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
         if hasattr(policy, 'reset'):  # reset policy state if method exists
             policy.reset()
         
+        step = 0
         while not done:
             action = policy.get_action(obs)
             obs, reward, done, info = env.step(action)
             episode_reward += reward
             
+            actions_df.loc[actions_df_index] = [i, step, obs, action, reward, done, info]
+            actions_df_index += 1
+            step += 1
             if gui_mode:
                 time.sleep(1./120.)
-        
+            
+        attempts_df.loc[attempts_df_index] = [i, episode_reward, info['grasp_success']]
+        attempts_df_index += 1
         successes += info['grasp_success']
         total_rewards.append(episode_reward)
         
@@ -86,6 +101,11 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
     print(f"Success rate: {final_success_rate:.2%}")
     print(f"Average reward: {np.mean(total_rewards):.2f}")
     print(f"Std reward: {np.std(total_rewards):.2f}")
+    curr_time = str(time.time_ns())
+    actions_filename = SAVE_PATH + "actions_from_run_at_" + curr_time + ".csv"
+    attempts_filename = SAVE_PATH + "attempts_from_run_at_" + curr_time + ".csv"
+    actions_df.to_csv(actions_filename)
+    attempts_df.to_csv(attempts_filename)
     
     env.cleanup()
     return final_success_rate
