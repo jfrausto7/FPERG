@@ -15,7 +15,16 @@ def train_hill_climbing(n_episodes=2000, gui=False, load_existing=False):
             print("Loaded existing policy...")
         except:
             print("No existing policy found, starting fresh...")
-    
+
+    """policy = SimulatedAnnealingPolicy()
+
+    if load_existing:
+        try:
+            policy.load_policy('src/sim_annealing_policy.pkl')
+            print("Loaded existing policy...")
+        except:
+            print("No existing policy found, starting fresh...")"""
+
     # training metrics
     success_history = deque(maxlen=100)
     reward_history = deque(maxlen=100)
@@ -57,6 +66,7 @@ def train_hill_climbing(n_episodes=2000, gui=False, load_existing=False):
     
     # save best policy
     policy.save_policy('src/best_hill_climbing_policy.pkl')
+
     env.cleanup()
     return policy
 

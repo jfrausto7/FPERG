@@ -76,7 +76,7 @@ class HillClimbingGraspingPolicy:
         
         # calculate adaptive step size based on recent performance
         base_step = self.param_config[param]['step_size'] * (self.step_size / self.initial_step_size)
-        
+
         # add momentum based on consecutive successes/failures
         if self.consecutive_successes > 3:
             # If doing well, make smaller adjustments
@@ -138,7 +138,7 @@ class HillClimbingGraspingPolicy:
                 else:
                     self.episodes_without_improvement += 1
                     self._adjust_step_size()
-                
+
                 # try the new parameters
                 self.current_params = self._try_new_parameters()
                 self.current_successes = 0

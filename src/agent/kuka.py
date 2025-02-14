@@ -2,7 +2,8 @@ import os, inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(os.path.dirname(currentdir))
 os.sys.path.insert(0, parentdir)
-
+import random
+import numpy as np
 import pybullet as p
 import math
 import pybullet_data
@@ -40,18 +41,43 @@ class Kuka:
     ]
     self.reset()
 
+  def get_random_joint_positions(self):
+      joint_positions = []
+      for lower, upper in zip(self.ll, self.ul):
+          # Use a smaller range (20%) of the full joint limits to ensure stable initial positions
+          range_reduction = 0.8
+          middle = (upper + lower) / 2
+          reduced_range = (upper - lower) * (1 - range_reduction) / 2
+          joint_positions.append(np.random.uniform(middle - reduced_range, middle + reduced_range))
+
+      # Add positions for the gripper joints (keeping them near zero for a neutral grip)
+      joint_positions.extend([
+          np.random.uniform(-0.1, 0.1),  # Small random variation for gripper joints
+          np.random.uniform(-0.1, 0.1),
+          0.0,
+          np.random.uniform(-0.1, 0.1),
+          0.0,
+          np.random.uniform(-0.1, 0.1),
+          0.0
+      ])
+      return joint_positions
+
   def reset(self):
     objects = p.loadSDF(os.path.join(self.urdfRootPath, "kuka_iiwa/kuka_with_gripper2.sdf"))
     self.kukaUid = objects[0]
-    #for i in range (p.getNumJoints(self.kukaUid)):
-    #  print(p.getJointInfo(self.kukaUid,i))
+
     p.resetBasePositionAndOrientation(self.kukaUid, [-0.100000, 0.000000, -0.130000],
                                       [0.000000, 0.000000, 0.000000, 1.000000])
+
+    # Joint position 0 corresponds to base position of the Kuka arm
+    # randomize the initial base position
     self.jointPositions = [
-        0.006418, 0.413184, -0.011401, -1.589317, 0.005379, 1.137684, -0.006539, 0.000048,
-        -0.299912, 0.000000, -0.000043, 0.299960, 0.000000, -0.000200
-    ]
+        random.uniform(-0.5, 0.5), 0.413184, -0.011401, -1.589317, 0.005379, 1.137684, -0.006539,
+        0.000048, -0.299912, 0.000000, -0.000043, 0.299960, 0.000000, -0.000200]
+
+
     self.numJoints = p.getNumJoints(self.kukaUid)
+
     for jointIndex in range(self.numJoints):
       p.resetJointState(self.kukaUid, jointIndex, self.jointPositions[jointIndex])
       p.setJointMotorControl2(self.kukaUid,

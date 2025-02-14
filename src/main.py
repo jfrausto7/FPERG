@@ -4,6 +4,7 @@ from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 import argparse
 import time
 import numpy as np
+import os
 
 def run_single_grasp(gui_mode=False, use_qlearning=False, policy_file=None):
     """Run a single grasp attempt"""
@@ -91,6 +92,8 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
     return final_success_rate
 
 def main():
+    print("Current working directory:", os.getcwd())
+
     parser = argparse.ArgumentParser(description='Run robotic grasping experiments')
     parser.add_argument('--gui', action='store_true', default=False,
                       help='Use GUI mode instead of DIRECT mode (default: DIRECT)')
@@ -100,6 +103,8 @@ def main():
                       help='Random seed (default: None)')
     parser.add_argument('--hill', action='store_true', default=False,
                       help='Use Hill Climbing policy instead of default policy')
+    parser.add_argument('--sim', action='store_true', default=False,
+                        help='Use Hill Climbing policy instead of default policy')
     parser.add_argument('--policy-file', type=str, default='src/best_hill_climbing_policy.pkl',
                       help='Path to Q-learning policy file (default: best_hill_climbing_policy.pkl)')
     

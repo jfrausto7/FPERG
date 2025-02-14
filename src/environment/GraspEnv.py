@@ -11,7 +11,7 @@ import os
 class GraspEnv(gym.Env):
     def __init__(self, gui=False):
         super().__init__()
-        
+
         # init
         self.gui = gui
         self._urdfRoot = pybullet_data.getDataPath()
@@ -73,14 +73,25 @@ class GraspEnv(gym.Env):
         self.kuka = kuka.Kuka(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
         self.robot_id = self.kuka.kukaUid
         
-        # load cube with reduced randomness
-        x = 0.5 + 0.05 * random.uniform(-1, 1)  # Reduced randomness
-        y = 0.0 + 0.05 * random.uniform(-1, 1)  # Reduced randomness
-        # TODO: ADD MORE SMALL OBJECTS FOR RANDOMNESS
-        self.object_id = p.loadURDF(os.path.join(self._urdfRoot, "cube_small.urdf"),
-                                  [x, y, self.initial_obj_height],
-                                  p.getQuaternionFromEuler([0, 0, 0]))
-        
+        # load objects with more randomness from a gaussian
+        x = random.gauss(0.5, 0.05)  # Centered at 0.5, wider spread
+        y = random.gauss(0.0, 0.05)  # Centered at 0.0, wider spread
+
+        # List of possible objects
+        object_files = (["cube_small.urdf"])
+        #, "sphere_small.urdf", "teddy_vhacd.urdf"])
+
+        # Can add any of these objects (performance decreases
+        """object_files = (["cube_small.urdf", "sphere_small.urdf", "teddy_vhacd.urdf", "duck_vhacd.urdf"
+        "/URDF_models/bowl/model.urdf", "/URDF_models/cleanser/model.urdf",
+        "/URDF_models/blue_tea_box/model.urdf", "/URDF_models/blue_tea_box/model.urdf",
+        "/URDF_models/medium_clamp/model.urdf", "/URDF_models/scissors/model.urdf"]"""
+
+        selected_object = random.choice(object_files)
+        self.object_id = p.loadURDF(os.path.join(self._urdfRoot, selected_object),
+                                    [x, y, self.initial_obj_height],
+                                    p.getQuaternionFromEuler([0, 0, 0]))
+
         # let objects settle w/ gravity
         for _ in range(20):
             p.stepSimulation()
