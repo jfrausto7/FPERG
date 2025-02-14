@@ -1,6 +1,8 @@
+import os
 from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
+from estimation.DirectEstimation import DirectEstimation
 import argparse
 import time
 import numpy as np
@@ -90,6 +92,39 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
     env.cleanup()
     return final_success_rate
 
+def run_direct_estimation(n_trials=1000, gui_mode=False, use_hill_climbing=False, policy_file=None):
+    """Run direct estimation of failure probability"""
+    print(f"\nRunning direct estimation with {n_trials} trials...")
+    print(f"Using {'hill climbing' if use_hill_climbing else 'default'} policy")
+
+    # create results directory if it doesn't exist
+    results_dir = 'results'
+    os.makedirs(results_dir, exist_ok=True)
+    
+    estimator = DirectEstimation(
+        n_trials=n_trials, 
+        gui=gui_mode,
+        use_hill_climbing=use_hill_climbing,
+        policy_file=policy_file
+    )
+    
+    try:
+        # Run estimation
+        p_failure, std_error, results_df = estimator.estimate_failure_probability()
+        
+        # Analyze results
+        analysis = estimator.analyze_failure_modes(results_df)
+        
+        # Save results with policy type in filename
+        policy_type = 'hill_climbing' if use_hill_climbing else 'default'
+        filename = f'results/direct_estimation_results_{policy_type}.csv'
+        estimator.save_results(results_df, filename)
+        
+    finally:
+        estimator.cleanup()
+    
+    return p_failure, std_error
+
 def main():
     parser = argparse.ArgumentParser(description='Run robotic grasping experiments')
     parser.add_argument('--gui', action='store_true', default=False,
@@ -102,6 +137,10 @@ def main():
                       help='Use Hill Climbing policy instead of default policy')
     parser.add_argument('--policy-file', type=str, default='src/best_hill_climbing_policy.pkl',
                       help='Path to Q-learning policy file (default: best_hill_climbing_policy.pkl)')
+    parser.add_argument('--estimate', action='store_true', default=False,
+                      help='Run direct estimation of failure probability')
+    parser.add_argument('--trials', type=int, default=1000,
+                      help='Number of trials for direct estimation (default: 1000)')
     
     args = parser.parse_args()
     
@@ -109,7 +148,20 @@ def main():
     if args.seed is not None:
         np.random.seed(args.seed)
     
-    # print selected config
+    if args.estimate:
+        print("Running direct estimation of failure probability...")
+        p_failure, std_error = run_direct_estimation(
+            args.trials, 
+            args.gui,
+            args.hill,  # Pass hill climbing flag
+            args.policy_file if args.hill else None  # Pass policy file only if using hill climbing
+        )
+        print(f"\nFinal Results:")
+        print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
+        print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
+        return
+    
+    # print selected config for regular runs
     mode = 'GUI' if args.gui else 'DIRECT'
     policy_type = 'Hill Climbing' if args.hill else 'Default'
     print(f"Running with {policy_type} policy in {mode} mode...")
