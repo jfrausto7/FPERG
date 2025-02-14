@@ -7,6 +7,8 @@ import pybullet as p
 from typing import Dict, List, Tuple
 import time
 
+Z_SCORE_95_CI = 1.96
+
 class DirectEstimation:
     def __init__(self, n_trials: int = 1000, gui: bool = False, use_hill_climbing: bool = False, policy_file: str = None):
         """
@@ -22,7 +24,7 @@ class DirectEstimation:
         self.gui = gui
         self.env = GraspEnv(gui=gui)
         
-        # Initialize appropriate policy
+        # initialize appropriate policy
         if use_hill_climbing:
             self.policy = HillClimbingGraspingPolicy()
             if policy_file:
@@ -45,7 +47,7 @@ class DirectEstimation:
         total_reward = 0
         steps = 0
         
-        # Record initial state
+        # record initial state
         obj_pos, obj_orn = p.getBasePositionAndOrientation(self.env.object_id)
         initial_state = {
             'obj_pos_x': obj_pos[0],
@@ -125,7 +127,7 @@ class DirectEstimation:
             'avg_steps_success': success_cases['steps'].mean(),
             'avg_reward_failure': failure_cases['total_reward'].mean(),
             'avg_reward_success': success_cases['total_reward'].mean(),
-            # Position analysis
+            # position analysis
             'failed_x_mean': failure_cases['obj_pos_x'].mean(),
             'failed_y_mean': failure_cases['obj_pos_y'].mean(),
             'failed_x_std': failure_cases['obj_pos_x'].std(),
@@ -134,9 +136,39 @@ class DirectEstimation:
         
         return analysis
     
-    def save_results(self, df: pd.DataFrame, filename: str = 'results/direct_estimation_results.csv'):
-        """Save results to CSV file."""
-        df.to_csv(filename, index=False)
+    def save_results(self, df: pd.DataFrame, filename: str = 'direct_estimation_results.csv'):
+        """
+        Save results to CSV file with metadata header.
+        
+        Args:
+            df: DataFrame containing trial results
+            filename: Path to save results
+        """
+        # calculate aggregate statistics
+        successes = df['success'].sum()
+        failures = len(df) - successes
+        p_failure = failures / len(df)
+        std_error = np.sqrt((p_failure * (1 - p_failure)) / len(df))
+        
+        # create metadata
+        metadata = pd.DataFrame([
+            ['n_trials', len(df)],
+            ['failures', failures],
+            ['successes', successes],
+            ['failure_probability', p_failure],
+            ['standard_error', std_error],
+            ['confidence_interval_low', p_failure - Z_SCORE_95_CI * std_error],
+            ['confidence_interval_high', p_failure + Z_SCORE_95_CI * std_error],
+            ['timestamp', time.strftime("%Y-%m-%d %H:%M:%S")]
+        ], columns=['metric', 'value'])
+        
+        # save both metadata & results
+        with open(filename, 'w') as f:
+            f.write("# Experiment Metadata\n")
+            metadata.to_csv(f, index=False)
+            f.write("\n# Trial Results\n")
+            df.to_csv(f, index=False)
+            
         print(f"Results saved to {filename}")
     
     def cleanup(self):
