@@ -66,7 +66,7 @@ class Kuka:
     objects = p.loadSDF(os.path.join(self.urdfRootPath, "kuka_iiwa/kuka_with_gripper2.sdf"))
     self.kukaUid = objects[0]
 
-    p.resetBasePositionAndOrientation(self.kukaUid, [-0.100000, 0.000000, -0.130000],
+    p.resetBasePositionAndOrientation(self.kukaUid, [random.uniform(-0.250000, 0.150000), random.uniform(-0.400000, 0.400000), -0.130000],
                                       [0.000000, 0.000000, 0.000000, 1.000000])
 
     # Joint position 0 corresponds to base position of the Kuka arm
