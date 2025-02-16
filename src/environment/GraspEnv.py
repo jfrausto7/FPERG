@@ -74,8 +74,8 @@ class GraspEnv(gym.Env):
         self.robot_id = self.kuka.kukaUid
         
         # load objects with more randomness from a gaussian
-        x = random.gauss(0.5, 0.05)  # Centered at 0.5, wider spread
-        y = random.gauss(0.0, 0.05)  # Centered at 0.0, wider spread
+        x = random.gauss(0.55, 0.05)  # Centered at 0.5, wider spread
+        y = random.gauss(0.05, 0.067)  # Centered at 0.0, wider spread
 
         # List of possible objects
         object_files = (["cube_small.urdf"])
