@@ -66,14 +66,15 @@ class Kuka:
     objects = p.loadSDF(os.path.join(self.urdfRootPath, "kuka_iiwa/kuka_with_gripper2.sdf"))
     self.kukaUid = objects[0]
 
-    p.resetBasePositionAndOrientation(self.kukaUid, [random.uniform(-0.250000, 0.150000), random.uniform(-0.400000, 0.400000), -0.130000],
+    p.resetBasePositionAndOrientation(self.kukaUid, [-0.100000, 0.000000, -0.130000],
                                       [0.000000, 0.000000, 0.000000, 1.000000])
 
     # Joint position 0 corresponds to base position of the Kuka arm
     # randomize the initial base position
     self.jointPositions = [
-        random.uniform(-0.5, 0.5), 0.413184, -0.011401, -1.589317, 0.005379, 1.137684, -0.006539,
-        0.000048, -0.299912, 0.000000, -0.000043, 0.299960, 0.000000, -0.000200]
+        0.006418, 0.413184, -0.011401, -1.589317, 0.005379, 1.137684, -0.006539, 0.000048,
+        -0.299912, 0.000000, -0.000043, 0.299960, 0.000000, -0.000200
+    ]
 
 
     self.numJoints = p.getNumJoints(self.kukaUid)
