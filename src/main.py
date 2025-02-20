@@ -138,8 +138,6 @@ def main():
                       help='Random seed (default: None)')
     parser.add_argument('--hill', action='store_true', default=False,
                       help='Use Hill Climbing policy instead of default policy')
-    parser.add_argument('--sim', action='store_true', default=False,
-                        help='Use Hill Climbing policy instead of default policy')
     parser.add_argument('--policy-file', type=str, default='src/best_hill_climbing_policy.pkl',
                       help='Path to Q-learning policy file (default: best_hill_climbing_policy.pkl)')
     parser.add_argument('--estimate', action='store_true', default=False,

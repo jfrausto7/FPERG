@@ -3,7 +3,6 @@ import pybullet as p
 import pybullet_data
 import numpy as np
 import random
-import time
 import gym
 from gym import spaces
 import os
@@ -75,7 +74,7 @@ class GraspEnv(gym.Env):
         
         # load objects with more randomness from a gaussian
         x = random.gauss(0.55, 0.05)  # Centered at 0.5, wider spread
-        y = random.gauss(0.05, 0.067)  # Centered at 0.0, wider spread
+        y = random.gauss(0.05, 0.05)  # Centered at 0.0, wider spread
 
         # List of possible objects
         object_files = (["cube_small.urdf"])
@@ -148,27 +147,31 @@ class GraspEnv(gym.Env):
         return observation, reward, done, info
 
     def _compute_reward(self):
-        """compute reward based on lift height and duration"""
+        """Compute reward based on lift height and gripper position"""
         obj_pos, _ = p.getBasePositionAndOrientation(self.object_id)
+        gripper_pos = p.getLinkState(self.robot_id, self.end_effector_index)[0]
+        
+        # Calculate distances
         lift_height = obj_pos[2] - self.initial_obj_height
+        xy_dist = np.linalg.norm(np.array(obj_pos[:2]) - np.array(gripper_pos[:2]))
+        
         reward = 0
         
-        # small shaping reward for getting closer
-        gripper_pos = p.getLinkState(self.robot_id, self.end_effector_index)[0]
-        xy_dist = np.linalg.norm(np.array(obj_pos[:2]) - np.array(gripper_pos[:2]))
-        if xy_dist < 0.05:
-            reward += 0.1  # Small positive reward for being close
+        # Reward for getting closer to object
+        if xy_dist < 0.1:  # Increased radius for positive feedback
+            reward += (0.1 - xy_dist) * 10  # Scaled reward for proximity
         
-        # main rewards for task completion
-        if lift_height > self.lift_threshold:
-            reward += 100  # Significant reward for lifting
-            if self.lift_duration >= self.required_lift_duration:
-                reward += 1000  # Insanely major reward for maintaining stable grasp
-        
-        # penalize any catastrophic failures
-        if obj_pos[2] < -0.3:  # Object fell off table
-            reward -= 100
+        # Additional reward for correct height
+        height_diff = abs(gripper_pos[2] - (obj_pos[2] + 0.1))  # Want gripper slightly above object
+        if height_diff < 0.05:
+            reward += (0.05 - height_diff) * 10
             
+        # Major rewards for lifting
+        if lift_height > self.lift_threshold:
+            reward += 100
+            if self.lift_duration >= self.required_lift_duration:
+                reward += 1000
+        
         return reward
 
     def check_grasp_success(self):
