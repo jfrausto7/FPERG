@@ -3,6 +3,7 @@ from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 from estimation.DirectEstimation import DirectEstimation
+from estimation.ImportanceSampling import importanceSamplingEstimation
 import argparse
 import time
 import numpy as np
@@ -12,6 +13,7 @@ def run_single_grasp(gui_mode=False, use_qlearning=False, policy_file=None):
     """Run a single grasp attempt"""
     env = GraspEnv(gui=gui_mode)
     obs = env.reset()
+    print(f"Observation: {obs}")
     done = False
     total_reward = 0
     
@@ -126,6 +128,17 @@ def run_direct_estimation(n_trials=1000, gui_mode=False, use_hill_climbing=False
     
     return p_failure, std_error
 
+
+def run_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_climbing=False, policy_file=None):
+    """Run importance sampling estimation for failure probability"""
+    print(f"\nRunning importance sampling with {n_trials} trials and depth {d}...")
+
+    estimator = importanceSamplingEstimation(n_trials=n_trials, gui=gui_mode, use_hill_climbing=use_hill_climbing, policy_file=policy_file)
+    failure_prob = estimator.importanceSampling(d)
+
+    print(f"Estimated failure probability: {failure_prob:.6f}")
+    return failure_prob
+
 def main():
     print("Current working directory:", os.getcwd())
 
@@ -146,6 +159,10 @@ def main():
                       help='Run direct estimation of failure probability')
     parser.add_argument('--trials', type=int, default=1000,
                       help='Number of trials for direct estimation (default: 1000)')
+    parser.add_argument('--importance', action='store_true', default=False,
+                        help='Run importance sampling estimation of failure probability')
+    parser.add_argument('--depth', type=int, default=1,
+                        help='Depth of trajectory for importance sampling (default: 10)')
     
     args = parser.parse_args()
     
@@ -164,6 +181,19 @@ def main():
         print(f"\nFinal Results:")
         print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
         print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
+        return
+
+    if args.importance:
+        print("Running importance sampling estimation of failure probability...")
+        failure_prob = run_importance_sampling(
+            n_trials=args.trials,
+            d=args.depth,
+            gui_mode=args.gui,
+            use_hill_climbing=args.hill,
+            policy_file=args.policy_file if args.hill else None
+        )
+        print(f"\nFinal Results:")
+        print(f"Estimated Failure Probability: {failure_prob:.4f}")
         return
     
     # print selected config for regular runs

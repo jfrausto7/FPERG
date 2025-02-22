@@ -41,26 +41,6 @@ class Kuka:
     ]
     self.reset()
 
-  def get_random_joint_positions(self):
-      joint_positions = []
-      for lower, upper in zip(self.ll, self.ul):
-          # Use a smaller range (20%) of the full joint limits to ensure stable initial positions
-          range_reduction = 0.8
-          middle = (upper + lower) / 2
-          reduced_range = (upper - lower) * (1 - range_reduction) / 2
-          joint_positions.append(np.random.uniform(middle - reduced_range, middle + reduced_range))
-
-      # Add positions for the gripper joints (keeping them near zero for a neutral grip)
-      joint_positions.extend([
-          np.random.uniform(-0.1, 0.1),  # Small random variation for gripper joints
-          np.random.uniform(-0.1, 0.1),
-          0.0,
-          np.random.uniform(-0.1, 0.1),
-          0.0,
-          np.random.uniform(-0.1, 0.1),
-          0.0
-      ])
-      return joint_positions
 
   def reset(self):
     objects = p.loadSDF(os.path.join(self.urdfRootPath, "kuka_iiwa/kuka_with_gripper2.sdf"))
