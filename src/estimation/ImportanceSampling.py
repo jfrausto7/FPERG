@@ -14,7 +14,7 @@ class importanceSamplingEstimation:
     def __init__(self, n_trials: int = 1000, gui: bool = False, use_hill_climbing: bool = False,
                  policy_file: str = None):
         """
-        Initialize direct estimation for failure probability estimation.
+        Initialize importance sampling for failure probability estimation.
 
         Args:
             n_trials: Number of trials to run
@@ -25,8 +25,6 @@ class importanceSamplingEstimation:
         self.n_trials = n_trials
         self.gui = gui
         self.env = GraspEnv(gui=gui)
-        self.nominal_distribution = None
-        self.proposal_distribution = None
 
         # initialize appropriate policy
         if use_hill_climbing:
@@ -43,36 +41,37 @@ class importanceSamplingEstimation:
 
         self.results: List[Dict] = []
 
+
+    """
+    Rollout takes in the proposal distribution and a specific depth. 
+    It generates trajectories based on the proposal distribution. 
+    The initial random state is from the reset() function in GraspEnv
+    The sensor disturbances x are sampled from the proposal distribution disturbance (sensor noise)
+    These disturbances are added to each component of the state to get the observation
+    We pass in the observation to the get_action() function to get the action
+    Call the step function with the selected action to get the next state, reward, termination status, and success info
+    We add the trajectory to the list and update the state s 
+    """
     def rollout(self, proposal_distribution, depth):
         # Get random initial state
         s = self.env.reset()
-        #print(s)
-        #print(f"Shape of s: {s.shape}")  # Debugging: check the shape of o
         trajectory = []
         # Call step function for num_samples
         for t in range(depth):
             # This is where we sampled our disturbances and added them to the state to get a noisy observation
-            x = []
             o = s.copy()
-            # Sample disturbances for each elem in s from the disturbance distribution
-            for i in range(len(s)):
-                disturbance = proposal_distribution.disturbance_distribution(t) # We don't need to iterate over `i`
-                #print(f"disturbance at {i}: {disturbance}")
-                x.append(disturbance.rvs())
-            x = np.array(x)
-            #print(x)
-            #print(f"Shape of x: {x.shape}")  # Debugging: check the shape of o
-            for i in range(len(x)):
-                o[i] = s[i] + x[i]
-            #print(o)
-            #print(f"Shape of obs: {o.shape}")  # Debugging: check the shape of o
-
-            a = self.policy.get_action(o) # Action is based on observation received from sensor
+            # Get disturbance distribution
+            disturb_dist = proposal_distribution.disturbance_distribution(t)
+            # For each elem of the state, sample from the disturbance distribution
+            x = np.array([disturb_dist.rvs() for _ in range(len(s))])
+            # Get the observation by adding disturbances to the state
+            o += x
+            # Action is based on observation received from sensor
+            a = self.policy.get_action(o)
             # s_prime is get_observation() returns a np array of gripper and object position
             s_prime, reward, done, info = self.env.step(a)
-
             # Trajectory is a list of dicts
-            trajectory.append({'state': s, 'obs': o, 'action': a, 'disturbance': x, 'success': info['grasp_success']})
+            trajectory.append({'state': s, 'obs': o, 'action': a, 'disturbance': x, 'done': done, 'success': info['grasp_success']})
             s = s_prime
 
             if done:
@@ -82,71 +81,39 @@ class importanceSamplingEstimation:
 
     """
     Check if a trajectory led to a failure
+    - Check if the final step in the trajectory is a success or failure
     """
-    """def is_failure(self, trajectory):
-        # If the trajectory was a success return false (it wasn't a failure)
-        if trajectory['success']:
-            return False
-        else:
-            return True"""
-
     def is_failure(self, trajectory):
-        # Check if any depth in the trajectory is a failure
-        for step in trajectory:
-            if not step['success']:  # Assuming 'success' is False for failure
-                return True  # If any step fails, consider the trajectory a failure
-        return False  # If no steps fail, the trajectory is not a failure
+        # Failure only if final step fails
+        return not trajectory[-1]['success']
 
     """
-    In the pdf function, WE DON'T WANT TO TAKE SAMPLES WE ARE ALREADY HAVE SAMPLES. 
-    What we want to do is get the likelihood of the samples we already have with respect to 
-    our initial state distributions and disturbance distributions 
+    Logpdf function we get the likelihood of the samples we already have with respect to 
+    our initial state distributions and disturbance distributions for the 
+    nominal or proposal distribution
     
     Get the sample of x, y values from our randomly initial state
     - Take the pdf of sampling THOSE x, y values from our random uniforms 
-    pdf of x = uniform.pdf(x, loc=0.45, scale=0.1)
-    pdf of y = uniform.pdf(y, loc=-0.05, scale=0.1)
     
     Same with the disturbances:
     For the disturbances added to sensor 
     - What is the likelihood of sampling each value from our disturbance distribution
-    for elem in disturbance values:
-        pdf += norm.pdf(elem, loc=0, scale=1) Or something like this 
     """
-
     def logpdf(self, dist, trajectory):
         log_prob = 0
         # Get likelihood of first state of trajectory
-        x_obj_pos = trajectory[0]['state'][3]
-        print(f"x_obj_pos: {x_obj_pos}")
-        y_obj_pos = trajectory[0]['state'][4]
-        print(f"y_obj_pos: {y_obj_pos}")
+        x_obj_pos, y_obj_pos = trajectory[0]['state'][3], trajectory[0]['state'][4]
+        #print(f"x_obj_pos: {x_obj_pos}")
+        #print(f"y_obj_pos: {y_obj_pos}")
 
-        #dist.initial_state_distribution[0] -> this should return a uniform(0.45, 0.55)
-        # Then I went to get the pdf of the x_obj_pos from this distribution
-        #log_prob += dist.initial_state_distribution()[0].pdf(x_obj_pos)
-        #prob_x = np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos))
         log_prob += np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos))
-
-        # dist.initial_state_distribution[0] -> this should return a uniform(-0.05, 0.05)
-        # Then I went to get the pdf of the y_obj_pos from this distribution
-        #prob_y = dist.initial_state_distribution()[1].pdf(y_obj_pos)
-        #log_prob_y = np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos))
         log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos))
 
-        print(f"log_prob: {log_prob}")
         # Go through each prob in disturbance and add it to the log prob
-        """        
-        Need to be able to pass a time variable into the disturbance distribution.
-        In the rollout we looped through the depth which gave us t
-        What is t in this case of finding the logpdf?
-        """
         for t in range(len(trajectory)):
             for elem in trajectory[t]['disturbance']:
-            # get prob of drawing sample from the disturbance distribution
-            # dist.disturbance_distribution() -> this should return a norm(mean, std)
-            # I want to get the pdf of sampling elem from this distribution
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem))
+        print(f"log_prob: {log_prob}")
         return log_prob
 
     def importanceSampling(self, d):
@@ -160,17 +127,18 @@ class importanceSamplingEstimation:
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define proposal distribution: Tweak mean and covariance values to increase failure likelihood
-        prop_dist = ProposalTrajectoryDistribution(0, 1, d)
+        prop_dist = ProposalTrajectoryDistribution(0, 0.75, d)
         # Perform rollouts with proposal
         trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
 
-        # Calculate likelihoods
-        nom_likelihood = np.array([np.exp(self.logpdf(pnom, trajectory)) for trajectory in trajectories])
-        prop_likelihood = np.array([np.exp(self.logpdf(prop_dist, trajectory)) for trajectory in trajectories])
+        # Compute log weights directly
+        log_nom = np.array([self.logpdf(pnom, traj) for traj in trajectories])
+        log_prop = np.array([self.logpdf(prop_dist, traj) for traj in trajectories])
+        log_weights = log_nom - log_prop
+        stabilized_weights = np.exp(log_weights - np.max(log_weights))  # Stabilize numerically
 
-        # turn likelihoods into nparrays to do element wise division
-        weights = nom_likelihood / prop_likelihood
-        failure_probability = np.mean([w * self.is_failure(trajectory) for w, trajectory in zip(weights, trajectories)])
+        # Compute weighted average of samples from the proposal distribution
+        failure_probability = np.mean([w * self.is_failure(trajectory) for w, trajectory in zip(stabilized_weights, trajectories)])
 
         return failure_probability
 
