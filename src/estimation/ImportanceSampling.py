@@ -126,7 +126,7 @@ class importanceSamplingEstimation:
 
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
-        # Define proposal distribution: Tweak mean and covariance values to increase failure likelihood
+        # Define proposal distribution: Tweak mean and std values to increase failure likelihood
         prop_dist = ProposalTrajectoryDistribution(0, 0.75, d)
         # Perform rollouts with proposal
         trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
