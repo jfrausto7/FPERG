@@ -123,6 +123,8 @@ class adaptiveImportanceSamplingEstimation:
         for t in range(len(trajectory)):
             for elem in trajectory[t]['disturbance']:
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem))
+                
+        log_prob = np.clip(log_prob, -1e10, 1e10)
         print(f"log_prob: {log_prob}")
         return log_prob
 
