@@ -7,7 +7,29 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
-            "args": ["--multiple", "10", "--hill"],
+            "args": [
+                "--multiple",
+                "10",
+                "--hill"
+            ],
+            "python": "${workspaceFolder}/venv/bin/python"
+        },
+        {
+            "name": "Python Debugger: Importance Sampling",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--importance",
+                "--trials",
+                "1000",
+                "--depth",
+                "3",
+                "--hill",
+                "--policy-file",
+                "src/best_hill_climbing_policy.pkl"
+            ],
             "python": "${workspaceFolder}/venv/bin/python"
         }
     ]
