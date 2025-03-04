@@ -119,22 +119,51 @@ class adaptiveImportanceSamplingEstimation:
         return log_prob
 
     """
-    Objective function that will return values greater than 0 for successes and 
-    less than or equal to 0 for failures. 
-    TODO: make this the robustness
+    Objective function that will return values greater than 0 for successes and
+    less than or equal to 0 for failures.
+
+    Computes robustness for a trajectory: >0 for success, ≤0 for failures.
+    Flow:
+    1. Success: If not a failure (final step success), return positive robustness based on lift duration excess + 1.
+    2. Failure Case 1: If object was lifted but trajectory failed, return negative robustness as max lift duration minus required duration.
+    3. Failure Case 2: If never lifted, return negative robustness as the minimum Euclidean distance between gripper and object across steps.
     """
-    def simple_failure_function(self, trajectory):
-        if self.is_failure(trajectory):
-            return -1
+    def simple_failure_function(self, trajectory): 
+        # For a last state of a trajectory, check if it’s a success -> positive value 
+        if not self.is_failure(trajectory):
+            robustness = max(trajectory[-1]['lift_duration'] - self.required_lift_duration, 0) + 1  # Base success = 1
+            return robustness
+
+        # Check if the object was ever lifted
+        lifted = any([step['lifted'] for step in trajectory])
+        
+        # Failure CASE 1: Lifted object but dropped it, so ended in failure 
+        if lifted:
+            max_lift_duration = max([step['lift_duration'] for step in trajectory])
+            robustness = max_lift_duration - self.required_lift_duration 	
+            return robustness
+        
+        # Failure CASE 2: Missed the object completely 	
         else:
-            return 1
+            min_distance = float('inf')
+            
+            for step in trajectory:
+                gripper_pos = np.array(step['state'][:3])
+                obj_pos = np.array(step['state'][3:])
+
+                # Euclidean distance between gripper and object
+                distance = np.linalg.norm(gripper_pos - obj_pos)
+                min_distance = min(min_distance, distance)
+            
+            robustness = -min_distance 
+            return robustness
+        
     """
     Function that will fit a proposal distribution given trajectories and weights.
     TODO: actually fit the trajectory distribution instead of returning the initial proposal dist
     """
     def fit(self, q, trajectories, ws):
         return q
-
 
     """
     Iterates to find a proposal distribution for importance sampling.
