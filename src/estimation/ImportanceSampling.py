@@ -136,9 +136,10 @@ class importanceSamplingEstimation:
         log_prop = np.array([self.logpdf(prop_dist, traj) for traj in trajectories])
         log_weights = log_nom - log_prop
         stabilized_weights = np.exp(log_weights - np.max(log_weights))  # Stabilize numerically
+        normalized_weights = stabilized_weights / np.sum(stabilized_weights)
 
         # Compute weighted average of samples from the proposal distribution
-        failure_probability = np.mean([w * self.is_failure(trajectory) for w, trajectory in zip(stabilized_weights, trajectories)])
+        failure_probability = np.mean([w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)])
 
         return failure_probability
 
