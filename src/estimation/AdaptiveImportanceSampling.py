@@ -1,16 +1,11 @@
 import numpy as np
 import math
-from scipy.stats import norm, uniform
 from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 from distributions.nominal_trajectory_dist import NominalTrajectoryDistribution
 from distributions.proposal_trajectory_dist import ProposalTrajectoryDistribution
-import pandas as pd
-import pybullet as p
-from typing import Dict, List, Tuple
-import time
-import stlpy
+from typing import Dict, List
 
 class adaptiveImportanceSamplingEstimation:
     def __init__(self, n_trials: int = 1000, gui: bool = False, use_hill_climbing: bool = False,
@@ -27,6 +22,8 @@ class adaptiveImportanceSamplingEstimation:
         self.n_trials = n_trials
         self.gui = gui
         self.env = GraspEnv(gui=gui)
+        self.required_lift_duration = 3.0  # duration for successful lift
+
 
         # initialize appropriate policy
         if use_hill_climbing:
@@ -72,8 +69,19 @@ class adaptiveImportanceSamplingEstimation:
             a = self.policy.get_action(o)
             # s_prime is get_observation() returns a np array of gripper and object position
             s_prime, reward, done, info = self.env.step(a)
+            # get object position from state
+            obj_pos = s[3:6]
             # Trajectory is a list of dicts
-            trajectory.append({'state': s, 'obs': o, 'action': a, 'disturbance': x, 'done': done, 'success': info['grasp_success']})
+            trajectory.append({
+                        'state': s, 
+                        'obs': o, 
+                        'action': a, 
+                        'disturbance': x, 
+                        'done': done, 
+                        'success': info['grasp_success'],
+                        'lifted': obj_pos[2] - self.env.initial_obj_height > self.env.lift_threshold,
+                        'lift_duration': info.get('lift_duration', 0)
+                    })
             s = s_prime
 
             if done:
@@ -159,11 +167,46 @@ class adaptiveImportanceSamplingEstimation:
             return robustness
         
     """
-    Function that will fit a proposal distribution given trajectories and weights.
-    TODO: actually fit the trajectory distribution instead of returning the initial proposal dist
+    Fit a new proposal distribution based on weighted trajectories.
+    
+    Args:
+        q: Current proposal distribution
+        trajectories: List of trajectory samples
+        ws: Sample weights
+    
+    Returns:
+        A new proposal distribution with updated parameters
     """
     def fit(self, q, trajectories, ws):
-        return q
+
+        # normalize weights (in case they aren't already)
+        normalized_ws = np.array(ws) / np.sum(ws) if np.sum(ws) > 0 else np.ones_like(ws) / len(ws)
+        
+        # extract all disturbances from trajs weighted by their importance
+        disturbance_samples = []
+        for trajectory, weight in zip(trajectories, normalized_ws):
+            for step in trajectory:
+                disturbance_samples.extend([(d, weight) for d in step['disturbance']])
+    
+        disturbances, weights = zip(*disturbance_samples) if disturbance_samples else ([], [])
+        disturbances = np.array(disturbances)
+        weights = np.array(weights)
+
+        if len(disturbances) > 0:
+            weighted_mean = np.sum(disturbances * weights.reshape(-1, 1), axis=0) / np.sum(weights)
+            weighted_var = np.sum(weights.reshape(-1, 1) * (disturbances - weighted_mean)**2, axis=0) / np.sum(weights)
+            weighted_std = np.sqrt(weighted_var)
+            
+            # ensure minimum std to prevent degeneration and create new proposal
+            avg_std = np.mean(weighted_std)
+            min_std = 0.1
+            avg_std = max(min_std, avg_std)
+            # weighted_std = max(0.1, weighted_std)            
+            new_q = ProposalTrajectoryDistribution(float(weighted_mean[0]), float(avg_std), q.depth)
+            return new_q
+        
+        # slightly widen the current distribution when there are no valid disturbances
+        return ProposalTrajectoryDistribution(q.mean, q.std * 1.1, q.depth)
 
     """
     Iterates to find a proposal distribution for importance sampling.
