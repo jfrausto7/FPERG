@@ -1,13 +1,14 @@
 import os
+import pdb
 from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 from estimation.DirectEstimation import DirectEstimation
 from estimation.ImportanceSampling import importanceSamplingEstimation
+#from estimation.AdaptiveImportanceSampling import adaptiveImportanceSamplingEstimation
 import argparse
 import time
 import numpy as np
-import os
 
 def run_single_grasp(gui_mode=False, use_qlearning=False, policy_file=None):
     """Run a single grasp attempt"""
@@ -74,7 +75,7 @@ def run_multiple_grasps(n_attempts=100, gui_mode=False, use_qlearning=False, pol
             action = policy.get_action(obs)
             obs, reward, done, info = env.step(action)
             episode_reward += reward
-            
+        
             if gui_mode:
                 time.sleep(1./120.)
         
@@ -139,6 +140,17 @@ def run_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_climbing=
     print(f"Estimated failure probability: {failure_prob:.6f}")
     return failure_prob
 
+
+def run_adaptive_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_climbing=False, policy_file=None):
+    """Run adaptive importance sampling estimation for failure probability"""
+    print(f"\nRunning adaptive importance sampling with {n_trials} trials and depth {d}...")
+
+    estimator = adaptiveImportanceSamplingEstimation(n_trials=n_trials, gui=gui_mode, use_hill_climbing=use_hill_climbing, policy_file=policy_file)
+    failure_prob = estimator.adaptiveImportanceSampling(d)
+
+    print(f"Estimated failure probability: {failure_prob:.6f}")
+    return failure_prob
+
 def main():
     print("Current working directory:", os.getcwd())
 
@@ -161,6 +173,8 @@ def main():
                       help='Number of trials for direct estimation (default: 1000)')
     parser.add_argument('--importance', action='store_true', default=False,
                         help='Run importance sampling estimation of failure probability')
+    parser.add_argument('--adaptive_importance', action='store_true', default=False,
+                        help='Run adaptive importance sampling estimation of failure probability')
     parser.add_argument('--depth', type=int, default=1,
                         help='Depth of trajectory for importance sampling (default: 10)')
     
@@ -186,6 +200,19 @@ def main():
     if args.importance:
         print("Running importance sampling estimation of failure probability...")
         failure_prob = run_importance_sampling(
+            n_trials=args.trials,
+            d=args.depth,
+            gui_mode=args.gui,
+            use_hill_climbing=args.hill,
+            policy_file=args.policy_file if args.hill else None
+        )
+        print(f"\nFinal Results:")
+        print(f"Estimated Failure Probability: {failure_prob:.4f}")
+        return
+    
+    if args.adaptive_importance:
+        print("Running adaptive importance sampling estimation of failure probability...")
+        failure_prob = run_adaptive_importance_sampling(
             n_trials=args.trials,
             d=args.depth,
             gui_mode=args.gui,
