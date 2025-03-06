@@ -135,10 +135,10 @@ def run_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_climbing=
     print(f"\nRunning importance sampling with {n_trials} trials and depth {d}...")
 
     estimator = importanceSamplingEstimation(n_trials=n_trials, gui=gui_mode, use_hill_climbing=use_hill_climbing, policy_file=policy_file)
-    failure_prob = estimator.importanceSampling(d)
+    failure_prob, std_error = estimator.importanceSampling(d)
 
     print(f"Estimated failure probability: {failure_prob:.6f}")
-    return failure_prob
+    return failure_prob, std_error
 
 
 def run_adaptive_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_climbing=False, policy_file=None):
@@ -146,10 +146,10 @@ def run_adaptive_importance_sampling(n_trials=10, d=1, gui_mode=False, use_hill_
     print(f"\nRunning adaptive importance sampling with {n_trials} trials and depth {d}...")
 
     estimator = adaptiveImportanceSamplingEstimation(n_trials=n_trials, gui=gui_mode, use_hill_climbing=use_hill_climbing, policy_file=policy_file)
-    failure_prob = estimator.adaptiveImportanceSampling(d)
+    failure_prob, std_error = estimator.adaptiveImportanceSampling(d)
 
     print(f"Estimated failure probability: {failure_prob:.6f}")
-    return failure_prob
+    return failure_prob, std_error
 
 def main():
     print("Current working directory:", os.getcwd())
@@ -199,7 +199,7 @@ def main():
 
     if args.importance:
         print("Running importance sampling estimation of failure probability...")
-        failure_prob = run_importance_sampling(
+        failure_prob, std_error = run_importance_sampling(
             n_trials=args.trials,
             d=args.depth,
             gui_mode=args.gui,
@@ -208,11 +208,13 @@ def main():
         )
         print(f"\nFinal Results:")
         print(f"Estimated Failure Probability: {failure_prob:.4f}")
+        print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
+        print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
         return
     
     if args.adaptive_importance:
         print("Running adaptive importance sampling estimation of failure probability...")
-        failure_prob = run_adaptive_importance_sampling(
+        failure_prob, std_error = run_adaptive_importance_sampling(
             n_trials=args.trials,
             d=args.depth,
             gui_mode=args.gui,
@@ -221,6 +223,8 @@ def main():
         )
         print(f"\nFinal Results:")
         print(f"Estimated Failure Probability: {failure_prob:.4f}")
+        print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
+        print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
         return
     
     # print selected config for regular runs

@@ -32,7 +32,8 @@ class adaptiveImportanceSamplingEstimation:
                 try:
                     self.policy.load_policy(policy_file)
                     print(f"Loaded hill climbing policy from {policy_file}")
-                except:
+                except Exception as e:
+                    print (f"Error: {e}")
                     print(f"Warning: Could not load policy from {policy_file}")
             self.policy.epsilon = 0  # disable exploration for evaluation
         else:
@@ -236,7 +237,7 @@ class adaptiveImportanceSamplingEstimation:
     def adaptiveImportanceSampling(self, d):
         # Calculate number of samples
         m = self.n_trials // d
-        m_elite = math.ceil(m / 10) 
+        m_elite = math.ceil(m / 10) - 1
         k_max = self.n_trials
         f = self.simple_failure_function
 
@@ -258,7 +259,9 @@ class adaptiveImportanceSamplingEstimation:
         normalized_weights = stabilized_weights / np.sum(stabilized_weights)
 
         # Compute weighted average of samples from the proposal distribution
-        failure_probability = np.mean([w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)])
+        weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
+        failure_probability = np.mean(weighted_samples)
+        std_error = np.std(weighted_samples)
 
-        return failure_probability
+        return failure_probability, std_error
 
