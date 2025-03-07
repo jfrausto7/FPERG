@@ -87,7 +87,7 @@ class adaptiveImportanceSamplingEstimation:
 
             if done:
                 break
-        print(f"Returned trajectory: {trajectory}")
+        # print(f"Returned trajectory: {trajectory}")
         return trajectory
 
     """
@@ -126,7 +126,7 @@ class adaptiveImportanceSamplingEstimation:
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem))
                 
         log_prob = np.clip(log_prob, -1e10, 1e10)
-        print(f"log_prob: {log_prob}")
+        # print(f"log_prob: {log_prob}")
         return log_prob
 
     """
