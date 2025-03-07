@@ -141,7 +141,12 @@ class importanceSamplingEstimation:
         # Compute weighted average of samples from the proposal distribution
         weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
         failure_probability = np.mean(weighted_samples)
-        std_error = np.std(weighted_samples)
+
+        # use failure indicators to compute variance and standard error
+        is_failure_array = np.array([self.is_failure(trajectory) for trajectory in trajectories])
+        effective_sample_size = 1 / np.sum(normalized_weights**2)
+        variance = np.sum(normalized_weights**2 * (is_failure_array - failure_probability)**2)
+        std_error = np.sqrt(variance / effective_sample_size)
 
         return failure_probability, std_error
 
