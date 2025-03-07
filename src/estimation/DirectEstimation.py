@@ -1,5 +1,5 @@
 import numpy as np
-from environment.GraspEnv import GraspEnv
+from src.environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 import pandas as pd
