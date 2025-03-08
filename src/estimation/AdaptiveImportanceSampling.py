@@ -87,7 +87,6 @@ class adaptiveImportanceSamplingEstimation:
 
             if done:
                 break
-        print(f"Returned trajectory: {trajectory}")
         return trajectory
 
     """
@@ -117,6 +116,11 @@ class adaptiveImportanceSamplingEstimation:
         #print(f"x_obj_pos: {x_obj_pos}")
         #print(f"y_obj_pos: {y_obj_pos}")
 
+        # keep the positions in bounds
+        x_obj_pos = np.sign(x_obj_pos)*(max(abs(x_obj_pos) - 0.0001, 0))
+        y_obj_pos = np.sign(y_obj_pos)*(max(abs(y_obj_pos) - 0.0001, 0))
+
+
         log_prob += np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos))
         log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos))
 
@@ -126,7 +130,6 @@ class adaptiveImportanceSamplingEstimation:
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem))
                 
         log_prob = np.clip(log_prob, -1e10, 1e10)
-        print(f"log_prob: {log_prob}")
         return log_prob
 
     """
@@ -218,6 +221,8 @@ class adaptiveImportanceSamplingEstimation:
 
     def find_proposal_dist(self, nominal_dist, proposal_dist, f, k_max, m, m_elite, d):
         for k in range(k_max):
+            if k % 10 == 0:
+                print(f"Completed {k}/{k_max} iterations...")
             # Perform rollouts with proposal
             trajectories = [self.rollout(proposal_dist, d) for _ in range(m)]
             Y = [f(traj) for traj in trajectories]
@@ -234,11 +239,11 @@ class adaptiveImportanceSamplingEstimation:
     Implements adaptive importance sampling to return a failure probability estimation.
     """
 
-    def adaptiveImportanceSampling(self, d):
+    def adaptiveImportanceSampling(self, d, k_max=100):
         # Calculate number of samples
         m = self.n_trials // d
         m_elite = math.ceil(m / 10) - 1
-        k_max = self.n_trials
+        # k_max = self.n_trials
         f = self.simple_failure_function
 
         # Define nominal distribution
@@ -261,7 +266,9 @@ class adaptiveImportanceSamplingEstimation:
         # Compute weighted average of samples from the proposal distribution
         weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
         failure_probability = np.mean(weighted_samples)
-        std_error = np.std(weighted_samples)
+        n = len(weighted_samples)
+        variance = np.sum((weighted_samples - failure_probability)**2) / (n - 1)
+        std_error = np.sqrt(variance / n)   # this should go down over time...
 
         return failure_probability, std_error
 

@@ -76,7 +76,6 @@ class importanceSamplingEstimation:
 
             if done:
                 break
-        print(f"Returned trajectory: {trajectory}")
         return trajectory
 
     """
@@ -106,6 +105,10 @@ class importanceSamplingEstimation:
         #print(f"x_obj_pos: {x_obj_pos}")
         #print(f"y_obj_pos: {y_obj_pos}")
 
+        # keep the positions in bounds
+        x_obj_pos = np.sign(x_obj_pos)*(max(abs(x_obj_pos) - 0.0001, 0))
+        y_obj_pos = np.sign(y_obj_pos)*(max(abs(y_obj_pos) - 0.0001, 0))
+
         log_prob += np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos))
         log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos))
 
@@ -113,7 +116,7 @@ class importanceSamplingEstimation:
         for t in range(len(trajectory)):
             for elem in trajectory[t]['disturbance']:
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem))
-        print(f"log_prob: {log_prob}")
+        log_prob = np.clip(log_prob, -1e10, 1e10)
         return log_prob
 
     def importanceSampling(self, d):
@@ -141,7 +144,9 @@ class importanceSamplingEstimation:
         # Compute weighted average of samples from the proposal distribution
         weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
         failure_probability = np.mean(weighted_samples)
-        std_error = np.std(weighted_samples)
+        n = len(weighted_samples)
+        variance = np.sum((weighted_samples - failure_probability)**2) / (n - 1)
+        std_error = np.sqrt(variance / n)   # this should go down over time...
 
         return failure_probability, std_error
 
