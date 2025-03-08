@@ -267,7 +267,7 @@ class adaptiveImportanceSamplingEstimation:
         weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
         failure_probability = np.mean(weighted_samples)
         n = len(weighted_samples)
-        variance = np.sum((weighted_samples - failure_probability)**2) / (n - 1)
+        variance = np.sum((weighted_samples - failure_probability)**2) / (n)
         std_error = np.sqrt(variance / n)   # this should go down over time...
 
         return failure_probability, std_error
