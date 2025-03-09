@@ -199,7 +199,7 @@ def main():
 
     if args.importance:
         print("Running importance sampling estimation of failure probability...")
-        failure_prob, std_error = run_importance_sampling(
+        p_failure, std_error = run_importance_sampling(
             n_trials=args.trials,
             d=args.depth,
             gui_mode=args.gui,
@@ -207,14 +207,14 @@ def main():
             policy_file=args.policy_file if args.hill else None
         )
         print(f"\nFinal Results:")
-        print(f"Estimated Failure Probability: {failure_prob:.4f}")
+        print(f"Estimated Failure Probability: {p_failure:.4f}")
         print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
         print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
         return
     
     if args.adaptive_importance:
         print("Running adaptive importance sampling estimation of failure probability...")
-        failure_prob, std_error = run_adaptive_importance_sampling(
+        p_failure, std_error = run_adaptive_importance_sampling(
             n_trials=args.trials,
             d=args.depth,
             gui_mode=args.gui,
@@ -222,7 +222,7 @@ def main():
             policy_file=args.policy_file if args.hill else None
         )
         print(f"\nFinal Results:")
-        print(f"Estimated Failure Probability: {failure_prob:.4f}")
+        print(f"Estimated Failure Probability: {p_failure:.4f}")
         print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
         print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
         return

@@ -117,12 +117,12 @@ class adaptiveImportanceSamplingEstimation:
         #print(f"y_obj_pos: {y_obj_pos}")
 
         # keep the positions in bounds
-        x_obj_pos = np.sign(x_obj_pos)*(max(abs(x_obj_pos) - 0.0001, 0))
-        y_obj_pos = np.sign(y_obj_pos)*(max(abs(y_obj_pos) - 0.0001, 0))
+        epsilon = 1e-8
+        # x_obj_pos = np.sign(x_obj_pos)*(max(abs(x_obj_pos) - 0.0001, 0))
+        # y_obj_pos = np.sign(y_obj_pos)*(max(abs(y_obj_pos) - 0.0001, 0))
 
-
-        log_prob += np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos))
-        log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos))
+        log_prob += np.log(dist.initial_state_distribution()[0].pdf(x_obj_pos) + epsilon)
+        log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos) + epsilon)
 
         # Go through each prob in disturbance and add it to the log prob
         for t in range(len(trajectory)):
