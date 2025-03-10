@@ -4,7 +4,7 @@ class NominalTrajectoryDistribution:
     def __init__(self, d):
         # Should define nominal values for mean and std for the sensor noise (try standard normal)
         self.mean = 0
-        self.std = 0.5
+        self.std = 0.0001 # since direct estimation is deterministic
         self.state_len = 6
         self.depth = d
 

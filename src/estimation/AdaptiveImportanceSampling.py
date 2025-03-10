@@ -231,11 +231,7 @@ class adaptiveImportanceSamplingEstimation:
             cutoff = max(0, Y[m_elite])
             ps = np.array([self.logpdf(nominal_dist, traj) for traj in trajectories])
             qs = np.array([self.logpdf(proposal_dist, traj) for traj in trajectories])
-            # calculate weights as exponential of difference of logs
-            log_weights = ps - qs
-            # log-sum-exp trick
-            max_log_weight = np.max(log_weights)
-            ws = np.exp(log_weights - max_log_weight)
+            ws = ps / qs
             ws = [w if y < cutoff else 0 for w,y in zip(ws,Y)]
             proposal_dist = self.fit(proposal_dist, trajectories, ws)
         return proposal_dist
@@ -246,15 +242,16 @@ class adaptiveImportanceSamplingEstimation:
 
     def adaptiveImportanceSampling(self, d, k_max=100):
         # Calculate number of samples
-        m = max(20, self.n_trials // d)
-        m_elite = math.ceil(m / 10) - 1
+        m = int(5 + (np.log(self.n_trials) - np.log(250)) / (np.log(10000) - np.log(250)) * 5)  # range: 5-10
+        m_elite = max(1, int(np.ceil(m / 3) - 1))  # range: 1-3
+
         # k_max = self.n_trials
         f = self.simple_failure_function
 
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define initial proposal distribution
-        init_prop_dist = ProposalTrajectoryDistribution(0, 0.5, d)
+        init_prop_dist = ProposalTrajectoryDistribution(0, 0.0001, d)
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
         prop_dist = self.find_proposal_dist(pnom, init_prop_dist, f, k_max, m, m_elite, d)
 

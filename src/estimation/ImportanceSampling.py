@@ -1,14 +1,12 @@
+import math
 import numpy as np
-from scipy.stats import norm, uniform
 from environment.GraspEnv import GraspEnv
 from policies.GraspingPolicy import GraspingPolicy
 from policies.HillClimbingGraspingPolicy import HillClimbingGraspingPolicy
 from distributions.nominal_trajectory_dist import NominalTrajectoryDistribution
 from distributions.proposal_trajectory_dist import ProposalTrajectoryDistribution
-import pandas as pd
 import pybullet as p
-from typing import Dict, List, Tuple
-import time
+from typing import Dict, List
 
 class importanceSamplingEstimation:
     def __init__(self, n_trials: int = 1000, gui: bool = False, use_hill_climbing: bool = False,
@@ -125,14 +123,14 @@ class importanceSamplingEstimation:
         # Calculate number of samples
         #print(f"number trials: {self.n_trials}")
         #print(f"depth: {d}")
-        m = max(20, self.n_trials // d)
+        m = int(min(100, max(20, -100 + 50 * math.log10(self.n_trials))))
         #print(f"number of samples: {m}")
 
 
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
-        prop_dist = ProposalTrajectoryDistribution(0, 0.5, d)
+        prop_dist = ProposalTrajectoryDistribution(0, 0.0001, d)
         # Perform rollouts with proposal
         trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
 
