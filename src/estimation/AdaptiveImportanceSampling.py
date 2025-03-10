@@ -269,8 +269,7 @@ class adaptiveImportanceSamplingEstimation:
         failure_indicators = np.array([self.is_failure(trajectory) for trajectory in trajectories])
         failure_probability = np.sum(normalized_weights * failure_indicators)
         variance = np.sum(normalized_weights**2 * (failure_indicators - failure_probability)**2)
-        ess = 1.0 / np.sum(normalized_weights**2)  # effective sample size
-        std_error = np.sqrt(variance / ess)  # standard error of the estimate
+        std_error = np.sqrt(variance)  # standard error of the estimate
 
         return failure_probability, std_error
 
