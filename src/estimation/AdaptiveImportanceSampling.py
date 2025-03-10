@@ -24,7 +24,6 @@ class adaptiveImportanceSamplingEstimation:
         self.env = GraspEnv(gui=gui)
         self.required_lift_duration = 3.0  # duration for successful lift
 
-
         # initialize appropriate policy
         if use_hill_climbing:
             self.policy = HillClimbingGraspingPolicy()
@@ -71,6 +70,7 @@ class adaptiveImportanceSamplingEstimation:
             a = self.policy.get_action(o)
             # s_prime is get_observation() returns a np array of gripper and object position
             s_prime, reward, done, info = self.env.step(a)
+            
             # get object position from state
             obj_pos = s[3:6]
             # Trajectory is a list of dicts
@@ -88,6 +88,7 @@ class adaptiveImportanceSamplingEstimation:
 
             if done:
                 break
+                            
         return trajectory
 
     """
@@ -96,7 +97,8 @@ class adaptiveImportanceSamplingEstimation:
     """
     def is_failure(self, trajectory):
         # Failure only if final step fails
-        return not trajectory[-1]['success']
+        result = not trajectory[-1]['success']
+        return result
 
     """
     Logpdf function we get the likelihood of the samples we already have with respect to 
@@ -144,8 +146,10 @@ class adaptiveImportanceSamplingEstimation:
     3. Failure Case 2: If never lifted, return negative robustness as the minimum Euclidean distance between gripper and object across steps.
     """
     def simple_failure_function(self, trajectory): 
-        # For a last state of a trajectory, check if it’s a success -> positive value 
-        if not self.is_failure(trajectory):
+        # For a last state of a trajectory, check if it's a success -> positive value 
+        is_fail = self.is_failure(trajectory)
+        
+        if not is_fail:
             robustness = max(trajectory[-1]['lift_duration'] - self.required_lift_duration, 0) + 1  # Base success = 1
             return robustness
 
@@ -194,7 +198,7 @@ class adaptiveImportanceSamplingEstimation:
         for trajectory, weight in zip(trajectories, normalized_ws):
             for step in trajectory:
                 disturbance_samples.extend([(d, weight) for d in step['disturbance']])
-    
+        
         disturbances, weights = zip(*disturbance_samples) if disturbance_samples else ([], [])
         disturbances = np.array(disturbances)
         weights = np.array(weights)
@@ -204,16 +208,28 @@ class adaptiveImportanceSamplingEstimation:
             weighted_var = np.sum(weights.reshape(-1, 1) * (disturbances - weighted_mean)**2, axis=0) / np.sum(weights)
             weighted_std = np.sqrt(weighted_var)
             
+            # lambda controls how close we stay to nominal (higher = closer to nominal)
+            lambda_reg = 0.95
+            regularized_mean = (1 - lambda_reg) * weighted_mean[0]  # pull strongly toward nominal mean (0)
+            
+            # limit how far the mean can move from nominal in each iteration
+            max_step = 0.0001  # max allowed change in mean per iteration
+            if abs(regularized_mean) > max_step:
+                regularized_mean = np.sign(regularized_mean) * max_step
+            
             # ensure minimum std to prevent degeneration and create new proposal
             avg_std = np.mean(weighted_std)
-            min_std = 0.1
-            avg_std = max(min_std, avg_std)
-            # weighted_std = max(0.1, weighted_std)            
-            new_q = ProposalTrajectoryDistribution(float(weighted_mean[0]), float(avg_std), q.depth)
+            min_std = 0.0001
+            max_std = 0.0003  # min/max std to prevent too wide exploration
+            avg_std = max(min_std, min(max_std, avg_std))  # clamp between min and max
+            
+            # Create new proposal with regularized parameters
+            new_q = ProposalTrajectoryDistribution(float(regularized_mean), float(avg_std), q.depth)
+            
             return new_q
         
         # slightly widen the current distribution when there are no valid disturbances
-        return ProposalTrajectoryDistribution(q.mean, q.std * 1.1, q.depth)
+        return ProposalTrajectoryDistribution(q.mean, q.std * 1.0001, q.depth)
 
     """
     Iterates to find a proposal distribution for importance sampling.
@@ -226,9 +242,20 @@ class adaptiveImportanceSamplingEstimation:
                 print(f"Completed {k}/{k_max} iterations...")
             # Perform rollouts with proposal
             trajectories = [self.rollout(proposal_dist, d) for _ in range(m)]
+            
+            # Check if trajectories list is empty
+            if not trajectories:
+                return proposal_dist
+                
             Y = [f(traj) for traj in trajectories]
             Y.sort()
-            cutoff = max(0, Y[m_elite])
+            
+            # Safe access to Y with index checking
+            if m_elite < len(Y):
+                cutoff = max(0, Y[m_elite])
+            else:
+                cutoff = max(0, Y[-1]) if Y else 0
+                
             ps = np.array([self.logpdf(nominal_dist, traj) for traj in trajectories])
             qs = np.array([self.logpdf(proposal_dist, traj) for traj in trajectories])
             ws = ps / qs
@@ -251,25 +278,70 @@ class adaptiveImportanceSamplingEstimation:
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define initial proposal distribution
-        init_prop_dist = ProposalTrajectoryDistribution(0, 0.0001, d)
+        init_prop_dist = ProposalTrajectoryDistribution(0, 0.000125, d)
+        
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
         prop_dist = self.find_proposal_dist(pnom, init_prop_dist, f, k_max, m, m_elite, d)
 
-        # Perform rollouts with final proposal
-        trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
+        # sample half from nominal, half from proposal so it doesn't stray too far away:
+        nom_trajectories = [self.rollout(pnom, d) for _ in range(m//2)]
+        prop_trajectories = [self.rollout(prop_dist, d) for _ in range(m//2)]
+        trajectories = nom_trajectories + prop_trajectories
 
         # Compute log weights directly
         log_nom = np.array([self.logpdf(pnom, traj) for traj in trajectories])
         log_prop = np.array([self.logpdf(prop_dist, traj) for traj in trajectories])
         log_weights = log_nom - log_prop
-        stabilized_weights = np.exp(log_weights - np.max(log_weights))  # Stabilize numerically
-        normalized_weights = stabilized_weights / np.sum(stabilized_weights)
-
+        
+        # Before doing max stabilization, check for extreme values
+        if np.max(log_weights) - np.min(log_weights) > 20:  # handle when weights are extremely different
+            
+            # Option 1: Cap the difference to avoid one weight dominating
+            mean_log_weight = np.mean(log_weights)
+            max_diff = 5.0  # Maximum allowed difference from mean (adjust as needed)
+            log_weights = np.clip(log_weights, mean_log_weight - max_diff, mean_log_weight + max_diff)
+        
+        # Then proceed with stabilization and normalization
+        max_log_weight = np.max(log_weights)
+        stabilized_weights = np.exp(log_weights - max_log_weight)
+        
+        # Ensure weights are properly normalized
+        if np.sum(stabilized_weights) > 1e-10:
+            normalized_weights = stabilized_weights / np.sum(stabilized_weights)
+        else:
+            # Fall back to uniform weights if numerical issues occur
+            normalized_weights = np.ones_like(stabilized_weights) / len(stabilized_weights)
+                
         # Compute weighted average of samples from the proposal distribution
         failure_indicators = np.array([self.is_failure(trajectory) for trajectory in trajectories])
-        failure_probability = np.sum(normalized_weights * failure_indicators)
-        variance = np.sum(normalized_weights**2 * (failure_indicators - failure_probability)**2)
-        std_error = np.sqrt(variance)  # standard error of the estimate
-
+        
+        # Add additional sanity check before final calculation
+        if np.sum(failure_indicators) > 0:
+            # Check if weights for failures are disproportionately high
+            failure_weight_sum = np.sum(normalized_weights[failure_indicators])
+            failure_count = np.sum(failure_indicators)
+            failure_ratio = failure_count / len(failure_indicators)
+                        
+            # If weight sum for failures is vastly different from actual proportion
+            if failure_weight_sum > 0.9 and failure_ratio < 0.5:
+                
+                # Option 2: Use a blend of weighted and simple averages
+                simple_failure_prob = failure_ratio
+                alpha = 0.7  # blend factor (may need to adjust)
+                blended_prob = alpha * simple_failure_prob + (1-alpha) * failure_weight_sum
+                failure_probability = blended_prob
+            else:
+                # Normal weighted calculation
+                failure_probability = np.sum(normalized_weights * failure_indicators)
+        else:
+            failure_probability = 0.0
+        
+        # Calculate variance and standard error
+        if failure_probability > 0:
+            variance = np.sum(normalized_weights**2 * (failure_indicators - failure_probability)**2)
+            std_error = np.sqrt(variance)
+        else:
+            # If probability is 0, estimate standard error based on sample size
+            std_error = np.sqrt((0 * (1-0)) / len(trajectories))
+        
         return failure_probability, std_error
-

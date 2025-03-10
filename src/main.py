@@ -207,7 +207,7 @@ def main():
             policy_file=args.policy_file if args.hill else None
         )
         print(f"\nFinal Results:")
-        print(f"Estimated Failure Probability: {p_failure:.4f}")
+        print(f"Estimated Failure Probability: {p_failure:.6f}")
         print(f"Failure Probability: {p_failure:.4f} ± {std_error:.4f}")
         print(f"95% Confidence Interval: [{p_failure - 1.96*std_error:.4f}, {p_failure + 1.96*std_error:.4f}]")
         return
