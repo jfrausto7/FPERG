@@ -242,7 +242,7 @@ class adaptiveImportanceSamplingEstimation:
 
     def adaptiveImportanceSampling(self, d, k_max=100):
         # Calculate number of samples
-        m = int(5 + (np.log(self.n_trials) - np.log(250)) / (np.log(10000) - np.log(250)) * 5)  # range: 5-10
+        m = max(5, int(5 + (np.log(self.n_trials) - np.log(250)) / (np.log(10000) - np.log(250)) * 5))  # range: 5-10
         m_elite = max(1, int(np.ceil(m / 3) - 1))  # range: 1-3
 
         # k_max = self.n_trials
