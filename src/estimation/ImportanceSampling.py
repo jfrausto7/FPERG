@@ -55,6 +55,7 @@ class importanceSamplingEstimation:
     def rollout(self, proposal_distribution, depth):
         # Get random initial state
         s = self.env.reset()
+        self.policy.reset()
         trajectory = []
         # Call step function for num_samples
         for t in range(depth):
@@ -124,14 +125,14 @@ class importanceSamplingEstimation:
         # Calculate number of samples
         #print(f"number trials: {self.n_trials}")
         #print(f"depth: {d}")
-        m = self.n_trials // d
+        m = max(20, self.n_trials // d)
         #print(f"number of samples: {m}")
 
 
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
-        prop_dist = ProposalTrajectoryDistribution(0, 0.75, d)
+        prop_dist = ProposalTrajectoryDistribution(0, 0.5, d)
         # Perform rollouts with proposal
         trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
 
@@ -143,11 +144,11 @@ class importanceSamplingEstimation:
         normalized_weights = stabilized_weights / np.sum(stabilized_weights)
 
         # Compute weighted average of samples from the proposal distribution
-        weighted_samples = [w * self.is_failure(trajectory) for w, trajectory in zip(normalized_weights, trajectories)]
-        failure_probability = np.mean(weighted_samples)
-        n = len(weighted_samples)
-        variance = np.sum((weighted_samples - failure_probability)**2) / (n)
-        std_error = np.sqrt(variance / n)   # this should go down over time...
+        failure_indicators = np.array([self.is_failure(trajectory) for trajectory in trajectories])
+        failure_probability = np.sum(normalized_weights * failure_indicators)
+        variance = np.sum(normalized_weights**2 * (failure_indicators - failure_probability)**2)
+        ess = 1.0 / np.sum(normalized_weights**2)  # effective sample size
+        std_error = np.sqrt(variance / ess)  # standard error of the estimate
 
         return failure_probability, std_error
 
