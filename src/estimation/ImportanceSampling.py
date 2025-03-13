@@ -56,16 +56,20 @@ class importanceSamplingEstimation:
         s = self.env.reset()
         self.policy.reset()
         trajectory = []
+        x = np.zeros(len(s))
         # Call step function for num_samples
         for t in range(depth):
             # This is where we sampled our disturbances and added them to the state to get a noisy observation
             o = s.copy()
-            # Get disturbance distribution
-            disturb_dist = proposal_distribution.disturbance_distribution(t)
-            # For each elem of the state, sample from the disturbance distribution
-            x = np.array([disturb_dist.rvs() for _ in range(len(s))])
-            # Get the observation by adding disturbances to the state
-            o += x
+
+            # if depth is greater than 500 apply noisy disturbances
+            if t >= 500:
+                # Get disturbance distribution
+                disturb_dist = proposal_distribution.disturbance_distribution(t)
+                #    For each elem of the state, sample from the disturbance distribution
+                x = np.array([disturb_dist.rvs() for _ in range(len(s))])
+                # Get the observation by adding disturbances to the state
+                o += x
             # Action is based on observation received from sensor
             a = self.policy.get_action(o)
             # s_prime is get_observation() returns a np array of gripper and object position
@@ -114,8 +118,9 @@ class importanceSamplingEstimation:
         log_prob += np.log(dist.initial_state_distribution()[1].pdf(y_obj_pos) + epsilon)
 
         # Go through each prob in disturbance and add it to the log prob
-        for t in range(len(trajectory)):
+        for t in range(500, len(trajectory)):
             for elem in trajectory[t]['disturbance']:
+                val = dist.disturbance_distribution(t).pdf(elem)
                 log_prob += np.log(dist.disturbance_distribution(t).pdf(elem) + epsilon)
         log_prob = np.clip(log_prob, -1e10, 1e10)
         return log_prob
