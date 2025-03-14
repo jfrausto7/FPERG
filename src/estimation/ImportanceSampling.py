@@ -137,12 +137,12 @@ class importanceSamplingEstimation:
         return stabilized_weights
 
     def importanceSampling(self, d):
-        # calculate number of samples based on n_trials
-        m = max(20, min(60, int(20 + (np.log(self.n_trials) - np.log(10)) / (np.log(10000) - np.log(10)) * 40)))
-        print(f"Running importance sampling with {m} samples...")
+        # Calculate number of samples
+        m = self.n_trials
+        print("Number of samples:", m)
 
         # run multiple trials to get a more stable estimate
-        num_trials = 3  # Using multiple trials for stability
+        num_trials = 2
         failure_probs = []
         std_errors = []
         
@@ -150,7 +150,7 @@ class importanceSamplingEstimation:
             # define nominal distribution
             pnom = NominalTrajectoryDistribution(d)
             # define proposal distribution: Tweak mean and std values to increase failure likelihood
-            prop_dist = ProposalTrajectoryDistribution(0, 0.00015, d)
+            prop_dist = ProposalTrajectoryDistribution(0, 0.0001025, d)
             
             # perform rollouts with proposal
             trajectories = [self.rollout(prop_dist, d) for _ in range(m)]
@@ -171,7 +171,7 @@ class importanceSamplingEstimation:
             log_weights = log_nom - log_prop
             
             # apply stabilization to log weights (similar to adaptive IS)
-            log_weights = self.stabilize_log_weights(log_weights)
+            # log_weights = self.stabilize_log_weights(log_weights)
             
             # stabilize and normalize weights
             max_log_weight = np.max(log_weights)

@@ -315,7 +315,7 @@ class adaptiveImportanceSamplingEstimation:
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define initial proposal distribution
-        init_prop_dist = ProposalTrajectoryDistribution(0, 0.000105, d)
+        init_prop_dist = ProposalTrajectoryDistribution(0, 0.0001025, d)
         
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
         prop_dist = self.find_proposal_dist(pnom, init_prop_dist, f, k_max, m, m_elite, d)

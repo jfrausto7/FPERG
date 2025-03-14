@@ -4,3 +4,4 @@ matplotlib>=3.5.0
 gym
 pandas
 scipy
+seaborn
