@@ -359,17 +359,8 @@ class adaptiveImportanceSamplingEstimation:
             
             # additional sanity check before final calculation
             if np.sum(failure_indicators) > 0:
-                # Check if weights for failures are disproportionately high
-                failure_weight_sum = np.sum(normalized_weights[failure_indicators])
-                failure_count = np.sum(failure_indicators)
-                failure_ratio = failure_count / len(failure_indicators)
-                
-                # Always blend, with the blend factor dependent on the difference
-                diff = abs(failure_weight_sum - failure_ratio)
-                # More difference = rely more on simple average
-                blend_alpha = min(0.5 + diff, 0.9)
-                blended_prob = blend_alpha * failure_ratio + (1-blend_alpha) * failure_weight_sum
-                failure_probability = blended_prob
+                # the weighted estimate is simply the sum of normalized weights for failure cases
+                failure_probability = np.sum(normalized_weights[failure_indicators])
             else:
                 failure_probability = 0.0
             

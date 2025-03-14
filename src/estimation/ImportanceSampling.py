@@ -186,17 +186,8 @@ class importanceSamplingEstimation:
             
             # compute weighted/unweighted failure probability
             weighted_failure_prob = np.sum(normalized_weights * failure_indicators)
-            raw_failure_prob = failure_count / len(trajectories)
-            
-            # check if weights for failures are disproportionately low
-            failure_weight_sum = np.sum(normalized_weights[failure_indicators])
-            
-            # Blend weighted and raw estimates for robustness
-            diff = abs(failure_weight_sum / failure_count - raw_failure_prob)
-            # more difference = rely more on simple average
-            blend_alpha = min(0.5 + diff, 0.9)
-            failure_probability = blend_alpha * raw_failure_prob + (1-blend_alpha) * weighted_failure_prob
-            
+            failure_probability = weighted_failure_prob
+        
             # compute variance and standard error
             if failure_probability > 0:
                 variance = np.sum(normalized_weights**2 * (failure_indicators - failure_probability)**2)
