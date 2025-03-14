@@ -303,7 +303,7 @@ class adaptiveImportanceSamplingEstimation:
         stabilized_weights = np.tanh(centered_log_weights / scale_factor) * scale_factor
         return stabilized_weights
 
-    def adaptiveImportanceSampling(self, d, k_max=10):
+    def adaptiveImportanceSampling(self, d, k_max=20):
         # Calculate number of samples
         m = self.n_trials
         m_elite = max(1, m // 10)
