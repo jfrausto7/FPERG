@@ -175,7 +175,7 @@ def main():
                         help='Run importance sampling estimation of failure probability')
     parser.add_argument('--adaptive_importance', action='store_true', default=False,
                         help='Run adaptive importance sampling estimation of failure probability')
-    parser.add_argument('--depth', type=int, default=1,
+    parser.add_argument('--depth', type=int, default=1000,
                         help='Depth of trajectory for importance sampling (default: 10)')
     
     args = parser.parse_args()

@@ -192,54 +192,66 @@ class adaptiveImportanceSamplingEstimation:
         A new proposal distribution with updated parameters
     """
     def fit(self, q, trajectories, ws):
-
         # normalize weights (in case they aren't already)
         normalized_ws = np.array(ws) / np.sum(ws) if np.sum(ws) > 0 else np.ones_like(ws) / len(ws)
         
         # extract all disturbances from trajs weighted by their importance
         disturbance_samples = []
+        weights_samples = []
         for trajectory, weight in zip(trajectories, normalized_ws):
             for step in trajectory:
-                disturbance_samples.extend([(d, weight) for d in step['disturbance']])
+                # handle both scalar and array disturbances
+                if np.isscalar(step['disturbance']) or len(step['disturbance']) == 0:
+                    continue  # Skip empty or scalar disturbances
+                disturbance_samples.extend(step['disturbance'])
+                weights_samples.extend([weight] * len(step['disturbance']))
         
-        disturbances, weights = zip(*disturbance_samples) if disturbance_samples else ([], [])
-        disturbances = np.array(disturbances)
-        weights = np.array(weights)
-
-        if len(disturbances) > 0:
-            weighted_mean = np.sum(disturbances * weights.reshape(-1, 1), axis=0) / np.sum(weights)
-            weighted_var = np.sum(weights.reshape(-1, 1) * (disturbances - weighted_mean)**2, axis=0) / np.sum(weights)
-            weighted_std = np.sqrt(weighted_var)
-            
-            # lambda controls how close we stay to nominal (higher = closer to nominal)
-            lambda_reg = 0.95
-            regularized_mean = (1 - lambda_reg) * weighted_mean[0]
-            
-            # limit how far the mean can move from nominal in each iteration
-            max_step = 0.0001  # max allowed change in mean per iteration
-            if abs(regularized_mean) > max_step:
-                regularized_mean = np.sign(regularized_mean) * max_step
-            
-            # ensure minimum std to prevent degeneration and create new proposal
-            avg_std = np.mean(weighted_std)
+        # check if if we have any valid disturbances (500+ depth)
+        if not disturbance_samples:
             min_std = 0.0001
-            max_std = 0.001  # min/max std to prevent too wide exploration
-            
-            # Apply smoothing to std changes
-            if hasattr(self, 'prev_std'):
-                smoothing_factor = 0.7
-                avg_std = smoothing_factor * self.prev_std + (1 - smoothing_factor) * avg_std
-                
-            avg_std = max(min_std, min(max_std, avg_std))  # clamp between min and max
-            self.prev_std = avg_std  # Store for next iteration
-            
-            # Create new proposal with regularized parameters
-            new_q = ProposalTrajectoryDistribution(float(regularized_mean), float(avg_std), q.depth)
-            
-            return new_q
+            return ProposalTrajectoryDistribution(q.mean, max(q.std * 1.05, min_std), q.depth)
         
-        # slightly widen the current distribution when there are no valid disturbances
-        return ProposalTrajectoryDistribution(q.mean, max(q.std * 1.05, min_std), q.depth)
+        disturbances = np.array(disturbance_samples)
+        weights = np.array(weights_samples)
+
+        weighted_mean = 0.0 
+        for d, w in zip(disturbances, weights):
+            weighted_mean += d * w
+        weighted_mean /= np.sum(weights)
+        
+        weighted_var = 0.0
+        for d, w in zip(disturbances, weights):
+            weighted_var += w * (d - weighted_mean)**2
+        weighted_var /= np.sum(weights)
+        weighted_std = np.sqrt(weighted_var)
+        
+        # lambda controls how close we stay to nominal (higher = closer to nominal)
+        lambda_reg = 0.95
+        # use weighted_mean directly if it's a scalar
+        regularized_mean = (1 - lambda_reg) * weighted_mean
+        
+        # limit how far the mean can move from nominal in each iteration
+        max_step = 0.0001  # max allowed change in mean per iteration
+        if abs(regularized_mean) > max_step:
+            regularized_mean = np.sign(regularized_mean) * max_step
+        
+        # ensure minimum std to prevent degeneration and create new proposal
+        avg_std = weighted_std if np.isscalar(weighted_std) else np.mean(weighted_std)
+        min_std = 0.0001
+        max_std = 0.001  # min/max std to prevent too wide exploration
+        
+        # apply smoothing to std changes
+        if hasattr(self, 'prev_std'):
+            smoothing_factor = 0.7
+            avg_std = smoothing_factor * self.prev_std + (1 - smoothing_factor) * avg_std
+            
+        avg_std = max(min_std, min(max_std, avg_std))  # clamp between min and max
+        self.prev_std = avg_std  # Store for next iteration
+        
+        # new proposal with regularized parameters
+        new_q = ProposalTrajectoryDistribution(float(regularized_mean), float(avg_std), q.depth)
+        
+        return new_q
 
     def find_proposal_dist(self, nominal_dist, proposal_dist, f, k_max, m, m_elite, d):
         self.prev_std = proposal_dist.std
@@ -293,21 +305,23 @@ class adaptiveImportanceSamplingEstimation:
 
     def adaptiveImportanceSampling(self, d, k_max=10):
         # Calculate number of samples
-        m = max(5, min(15, int(5 + (np.log(self.n_trials) - np.log(10)) / (np.log(10000) - np.log(10)) * 10))) # range [5, 15]
-        m_elite = max(1, min(5, int(np.ceil(m / 3)))) # range: [1, 5]
+        m = self.n_trials
+        m_elite = max(1, m // 10)
+        print("Number of samples:", m)
+        print("Number of elite samples:", m_elite)
 
         f = self.simple_failure_function
 
         # Define nominal distribution
         pnom = NominalTrajectoryDistribution(d)
         # Define initial proposal distribution
-        init_prop_dist = ProposalTrajectoryDistribution(0, 0.00015, d)
+        init_prop_dist = ProposalTrajectoryDistribution(0, 0.000105, d)
         
         # Define proposal distribution: Tweak mean and std values to increase failure likelihood
         prop_dist = self.find_proposal_dist(pnom, init_prop_dist, f, k_max, m, m_elite, d)
 
         # Run multiple trials to get a more stable estimate
-        num_final_trials = 5
+        num_final_trials = 2
         failure_probs = []
         std_errors = []
         
@@ -327,7 +341,7 @@ class adaptiveImportanceSamplingEstimation:
             log_weights = log_nom - log_prop
             
             # apply more stable transformation to log weights
-            log_weights = self.stabilize_log_weights(log_weights)
+            # log_weights = self.stabilize_log_weights(log_weights)
             
             # proceed with stabilization and normalization
             max_log_weight = np.max(log_weights)
